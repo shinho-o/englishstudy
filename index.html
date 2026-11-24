@@ -53,6 +53,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .en input.ok{border-color:var(--g);background:var(--okbg)}
 .en input.no{border-color:var(--bad);background:var(--badbg);color:var(--bad)}
 .fix{display:inline-block;font:700 14px "Noto Sans KR",sans-serif;color:var(--g);background:var(--hi);color:#1a1a1a;border-radius:4px;padding:0 5px;margin-left:2px;line-height:1.5;vertical-align:middle}
+.bank{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.chip{font:600 16px 'Source Serif 4',Georgia,serif;min-height:44px;padding:8px 14px;border-radius:22px;border:1.5px solid var(--g);background:var(--paper);color:var(--ink);cursor:pointer}.chip:disabled{opacity:.25;cursor:default}.en input.pick{cursor:pointer;caret-color:transparent}.en input.sel{outline:3px solid var(--hi)}
 .msg{min-height:24px;font-size:14px;font-weight:700;margin:10px 0}.msg.no{color:var(--bad)}.msg.ok{color:var(--g)}
 .sticky{position:sticky;bottom:0;background:var(--paper);padding:12px 0 4px;margin-top:8px;border-top:1px solid var(--line)}
 /* lists */
@@ -85,6 +86,7 @@ label.f{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
 <div id="p-free" class="hidden card">
 <label class="f" for="fr">범위</label><select id="fr"></select>
 <label class="f" for="fm">방식</label><select id="fm"><option value="all">전체 문장</option><option value="wrong">이 범위의 오답만</option><option value="rand">랜덤 15문장</option></select>
+<label class="f" for="fk">풀이</label><select id="fk"><option value="ch">선택형 (보기에서 고르기)</option><option value="ty">타이핑 (직접 쓰기)</option></select>
 <div style="margin-top:14px"><button class="btn wide" id="fgo">연습 시작</button></div>
 <p class="note">자유 연습도 기록에 남지만 그날 목표 완료로는 치지 않아요.</p>
 </div>
@@ -96,6 +98,7 @@ label.f{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
 <div class="bar"><i id="qbar"></i></div>
 <div class="ko" id="qko"></div>
 <div class="en" id="qen"></div>
+<div class="bank" id="bank"></div>
 <div class="msg" id="qmsg"></div>
 <div class="sticky row">
 <button class="btn ghost" id="bhint">첫 글자 힌트</button>
@@ -138,11 +141,11 @@ const mix=(...r)=>r.flat();
 const prevWeak=(ids,n)=>shuffle(ITEMS.filter(i=>weak(i.id)&&!ids.includes(i.id)).map(i=>i.id)).slice(0,n);
 let PREV=new Set(),PREV_USE=new Set();const withPrev=ids=>{const p=prevWeak(ids,999).sort(byOrder);PREV=new Set(p);return p.concat(ids)};
 const PLAN=[
- {t:`영어I 본문 1–17 · 영어II 본문 1–14`,ids:()=>mix(rng(0,0,1,17),rng(1,0,1,14)),n:31},
- {t:`영어I 본문 18–34 · 영어II 본문 15–28`,ids:()=>withPrev(mix(rng(0,0,18,34),rng(1,0,15,28))),n:31,p:1},
- {t:`영어I 본문 35–51 · 영어II 본문 29–42`,ids:()=>withPrev(mix(rng(0,0,35,51),rng(1,0,29,42))),n:31,p:1},
- {t:`영어I 본문 52–${A0}+본문 외 · 영어II 본문 43–${B0}+본문 외`,ids:()=>withPrev(mix(rng(0,0,52,A0),rng(0,1,1,A1),rng(1,0,43,B0),rng(1,1,1,B1))),n:A0-51+A1+B0-42+B1,p:1},
- {t:`두 단원 오답 복습 30문장`,ids:()=>reviewAll(30),n:30,rev:1},
+ {ch:1,t:`영어I 본문 1–17 · 영어II 본문 1–14`,ids:()=>mix(rng(0,0,1,17),rng(1,0,1,14)),n:31},
+ {ch:1,t:`영어I 본문 18–34 · 영어II 본문 15–28`,ids:()=>withPrev(mix(rng(0,0,18,34),rng(1,0,15,28))),n:31,p:1},
+ {ch:1,t:`영어I 본문 35–51 · 영어II 본문 29–42`,ids:()=>withPrev(mix(rng(0,0,35,51),rng(1,0,29,42))),n:31,p:1},
+ {ch:1,t:`영어I 본문 52–${A0}+본문 외 · 영어II 본문 43–${B0}+본문 외`,ids:()=>withPrev(mix(rng(0,0,52,A0),rng(0,1,1,A1),rng(1,0,43,B0),rng(1,1,1,B1))),n:A0-51+A1+B0-42+B1,p:1},
+ {ch:1,t:`두 단원 오답 복습 30문장`,ids:()=>reviewAll(30),n:30,rev:1},
  {t:`두 단원 전체 랜덤 30문장`,ids:()=>reviewAll(30,10),n:30,rev:1},
  {t:`최종 테스트 30문장`,ids:()=>finalSet(),n:30,test:1}
 ];
@@ -178,21 +181,21 @@ function renderDays(){const t=dayIdx(new Date());$('days').innerHTML=PLAN.map((p
  $('days').querySelectorAll('.day').forEach(b=>b.onclick=()=>{sel=+b.dataset.k;renderDays();renderMission()})}
 function renderMission(){const p=PLAN[sel],t=dayIdx(new Date()),d=dateOf(sel);const done=dayDone(sel);const streak=(()=>{let s=0;for(let k=Math.min(t,6);k>=0;k--){if(dayDone(k))s++;else if(k<t)break}return s})();
  const desc=p.test?'틀려도 다시 안 나와요. 실전처럼 한 번에.':p.rev?(sel===4?'지금까지 틀린 문장 먼저, 모자라면 랜덤으로 채워요. 틀린 건 맞을 때까지 다시 나와요.':'두 단원 전체에서 랜덤, 오답 문장도 일부 섞여요.'):'두 단원을 조금씩. 틀린 문장은 끝에 다시 나와서 전부 맞혀야 완료.'+(p.p?` 전날까지 틀린 문장 ${ITEMS.filter(i=>weak(i.id)).length}개가 앞에 먼저 나와요.`:'');
- const nb=p.n;
+ const nb=p.n;const modeTxt=p.ch?'선택형: 보기에서 골라 채우기':'타이핑: 한글 해석 없이 직접 쳐서 채우기';
  const best=ST.logs.filter(l=>l.day===sel&&l.full).sort((a,b)=>b.pct-a.pct)[0];
- $('mission').innerHTML=`<span class="tag">${sel+1}일차 · ${md(d)}${sel===t?' · 오늘':''}</span><h2>${esc(p.t)}</h2><p class="meta">${p.rev||p.test?`${nb}문장`:`새 문장 ${nb}개${p.p?' + 복습':''}`} · ${desc}</p>
+ $('mission').innerHTML=`<span class="tag">${sel+1}일차 · ${md(d)}${sel===t?' · 오늘':''}</span><h2>${esc(p.t)}</h2><p class="meta"><b>${modeTxt}</b><br>${p.rev||p.test?`${nb}문장`:`새 문장 ${nb}개${p.p?' + 복습':''}`} · ${desc}</p>
  <div class="stats"><div class="stat"><b>${done?'완료':'아직'}</b><small>이날 목표</small></div><div class="stat"><b>${streak}일</b><small>연속 달성</small></div><div class="stat"><b>${best?best.pct+'%':'–'}</b><small>이날 최고 첫 정답률</small></div></div>
  <button class="btn wide" id="go">${done?'한 번 더 하기':'시작하기'}</button>${saveOK?'':'<p class="note">이 브라우저(시크릿 모드 등)에서는 내 기록이 저장되지 않아요. 선생님께는 전송돼요.</p>'}`;
- $('go').onclick=()=>start(p.ids(),{day:sel,title:`${sel+1}일차 ${p.t}`,test:!!p.test})}
+ $('go').onclick=()=>start(p.ids(),{day:sel,title:`${sel+1}일차 ${p.t}${p.ch?' (선택형)':' (타이핑)'}`,test:!!p.test,ch:!!p.ch,noko:!p.ch})}
 function renderLog(){const L=ST.logs.slice().reverse();$('p-log').innerHTML=L.length?`<ul class="log">${L.map(l=>{const d=new Date(l.at);return `<li><span class="pct">${l.pct}%</span><b>${esc(md(d))} ${hm(d)}</b> · ${esc(l.title)}<br><span class="s">첫 정답 ${l.ok}/${l.nb} · ${l.min}분${l.full?'':' · 중간에 그만둠'}${l.wrong.length?` · 틀린 문장 ${l.wrong.length}개`:''}</span></li>`}).join('')}</ul><div class="row" style="margin-top:12px"><button class="btn ghost" id="ball">전체 기록 복사</button><span class="confirm" id="rst"><button class="btn ghost" id="brst">기록 초기화</button></span></div><p class="msg ok" id="lmsg"></p>`:'<p class="note">아직 기록이 없어요. 오늘 목표부터 시작해 보세요.</p>';
  if(!L.length)return;
  $('ball').onclick=()=>copy(allReport(),$('lmsg'));
  $('brst').onclick=()=>{$('rst').innerHTML='<span class="note" style="margin:0">정말 지울까요?</span><button class="btn ghost" id="ry">지우기</button><button class="btn ghost" id="rn">취소</button>';$('ry').onclick=()=>{ST.logs=[];ST.item={};save();refresh()};$('rn').onclick=renderLog}}
 function renderWrong(){const w=ITEMS.filter(i=>weak(i.id));$('p-wrong').innerHTML=w.length?`<p class="note" style="margin-top:0">한 번이라도 틀렸고 아직 2번 연속 맞히지 못한 문장 ${w.length}개예요. 복습 날 먼저 나와요.</p><ul class="wrongs">${w.map(i=>`<li><b>${esc(lab(i))}</b> (틀림 ${ST.item[i.id].w}번) — ${esc(full(i))}</li>`).join('')}</ul><button class="btn wide" id="wgo" style="margin-top:12px">오답만 지금 연습</button>`:'<p class="note">오답 문장이 없어요.</p>';
- if(w.length)$('wgo').onclick=()=>start(w.map(i=>i.id),{day:-1,title:'오답 문장 연습'})}
+ if(w.length)$('wgo').onclick=()=>start(w.map(i=>i.id),{day:-1,title:'오답 문장 연습'+(dayIdx(new Date())<5?' (선택형)':' (타이핑)'),ch:dayIdx(new Date())<5})}
 const full=i=>i.seg.map(x=>typeof x==='object'?x.a:x).join('');
 function freeOpts(){const opts=[];[0,1].forEach(b=>[0,1].forEach(s=>{const n=cntSec(b,s);opts.push([`${b}-${s}-1-${n}`,`${BOOK[b]} ${SEC[s]==='외'?'본문 외':'본문'} 전체 (${n})`]);if(s===0)for(let a=1;a<=n;a+=15){const z=Math.min(a+14,n);opts.push([`${b}-${s}-${a}-${z}`,`　${BOOK[b]} 본문 ${a}–${z}`])}}));$('fr').innerHTML=opts.map(o=>`<option value="${o[0]}">${esc(o[1])}</option>`).join('')}
-$('fgo').onclick=()=>{const [b,s,a,z]=$('fr').value.split('-').map(Number);let ids=rng(b,s,a,z);const m=$('fm').value;if(m==='wrong')ids=ids.filter(weak);if(m==='rand')ids=shuffle(ids).slice(0,15);if(!ids.length){$('fgo').textContent='이 범위엔 오답이 없어요';setTimeout(()=>$('fgo').textContent='연습 시작',1500);return}start(ids,{day:-1,title:`자유 연습 ${$('fr').selectedOptions[0].textContent.trim()}`})};
+$('fgo').onclick=()=>{const [b,s,a,z]=$('fr').value.split('-').map(Number);let ids=rng(b,s,a,z);const m=$('fm').value;if(m==='wrong')ids=ids.filter(weak);if(m==='rand')ids=shuffle(ids).slice(0,15);if(!ids.length){$('fgo').textContent='이 범위엔 오답이 없어요';setTimeout(()=>$('fgo').textContent='연습 시작',1500);return}start(ids,{day:-1,title:`자유 연습 ${$('fr').selectedOptions[0].textContent.trim()}${$('fk').value==='ch'?' (선택형)':' (타이핑)'}`,ch:$('fk').value==='ch'})};
 ['log','wrong','free'].forEach(t=>$('t-'+t).onclick=()=>{['log','wrong','free'].forEach(x=>{$('t-'+x).classList.toggle('on',x===t);$('p-'+x).classList.toggle('hidden',x!==t)})});
 
 // session
@@ -201,11 +204,20 @@ function start(ids,o){PREV_USE=PREV;PREV=new Set();if(!ST.name){$('nm').focus();
 function next(){if(!S.queue.length)return finish(true);S.cur=S.queue.shift();S.checked=false;const it=BY[S.cur];
  const isRe=S.first[S.cur]!==undefined;
  $('qlab').textContent=lab(it)+(S.prev&&S.prev.has(S.cur)?' · 어제 틀린 문장':'')+(isRe?' · 다시':'');$('qcnt').textContent=`${S.done}/${S.ids.length} 완료${S.queue.length&&!S.o.test?` · 남은 재도전 ${S.queue.filter(x=>S.first[x]!==undefined).length}`:''}`;
- $('qbar').style.width=(S.done/S.ids.length*100)+'%';$('qko').textContent=it.ko;
+ $('qbar').style.width=(S.done/S.ids.length*100)+'%';$('qko').textContent=it.ko;$('qko').classList.toggle('hidden',!!S.o.noko);
  let k=0;$('qen').innerHTML=it.seg.map(x=>typeof x==='object'?`<input data-k="${k++}" aria-label="빈칸 ${k}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" style="width:${x.a.split(' ').length*9+3}ch">`:esc(x)).join('');
- $('qmsg').textContent='';$('qmsg').className='msg';$('bgo').textContent='확인';$('bhint').disabled=false;$('bhint').style.opacity=1;$('qnote').textContent=S.o.test?'테스트: 힌트를 쓰면 틀린 걸로 쳐요.':'';
+ $('qmsg').textContent='';$('qmsg').className='msg';$('bgo').textContent='확인';$('bhint').disabled=false;$('bhint').style.opacity=1;$('qnote').textContent=S.o.ch?'보기를 누르면 빈칸에 순서대로 들어가요. 채운 빈칸을 누르면 지워져요.':S.o.test?'테스트: 힌트를 쓰면 틀린 걸로 쳐요.':'';
  const ins=[...$('qen').querySelectorAll('input')];ins.forEach((el,i)=>el.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();if(S.checked)return next();if(i<ins.length-1&&!ins[i+1].value)ins[i+1].focus();else check()}});
- setTimeout(()=>ins[0]&&ins[0].focus(),30)}
+ $('bank').innerHTML='';$('bhint').classList.toggle('hidden',!!S.o.ch);
+ if(S.o.ch){const ans=it.seg.filter(x=>typeof x==='object').map(x=>x.a);const own=new Set(ans.map(norm));
+  const pool=[...new Set(ITEMS.filter(i=>i.b===it.b).flatMap(i=>i.seg.filter(x=>typeof x==='object').map(x=>x.a)))].filter(a=>!own.has(norm(a)));
+  const dist=shuffle(pool).slice(0,ans.length<=2?3:4);const words=shuffle(ans.concat(dist));
+  $('bank').innerHTML=words.map((w,i)=>`<button class="chip" data-i="${i}">${esc(w)}</button>`).join('');
+  let selI=0;const mark=()=>ins.forEach((el,i)=>el.classList.toggle('sel',i===selI&&!S.checked));
+  ins.forEach((el,i)=>{el.readOnly=true;el.classList.add('pick');el.setAttribute('inputmode','none');el.onclick=()=>{if(S.checked)return;if(el.value){const c=$('bank').querySelector(`[data-i="${el.dataset.c}"]`);if(c)c.disabled=false;el.value='';}selI=i;mark()}});
+  $('bank').querySelectorAll('.chip').forEach(c=>c.onclick=()=>{if(S.checked)return;let t=ins[selI]&&!ins[selI].value?selI:ins.findIndex(e=>!e.value);if(t<0)return;ins[t].value=words[+c.dataset.i];ins[t].dataset.c=c.dataset.i;c.disabled=true;const n=ins.findIndex(e=>!e.value);selI=n<0?-1:n;mark();if(n<0)$('bgo').focus()});
+  mark();
+ } else setTimeout(()=>ins[0]&&ins[0].focus(),30)}
 const norm=s=>s.toLowerCase().replace(/[’‘`]/g,"'").replace(/[.,!?;:"]/g,'').replace(/\s+/g,' ').trim();
 function check(){const it=BY[S.cur],ans=it.seg.filter(x=>typeof x==='object').map(x=>x.a),ins=[...$('qen').querySelectorAll('input')];let ok=0;
  ins.forEach((el,i)=>{const good=norm(el.value)===norm(ans[i]);el.classList.add(good?'ok':'no');el.readOnly=true;if(good)ok++;else el.insertAdjacentHTML('afterend',`<span class="fix">${esc(ans[i])}</span>`)});
@@ -214,7 +226,7 @@ function check(){const it=BY[S.cur],ans=it.seg.filter(x=>typeof x==='object').ma
  if(first){S.first[S.cur]=S.hinted[S.cur]?0:ok;const st=ST.item[S.cur]||(ST.item[S.cur]={w:0,k:0});if(allOk)st.k++;else{st.w++;st.k=0}}
  if(ok===ins.length){S.done++;$('qmsg').textContent=S.hinted[S.cur]?'정답 (힌트 사용)':'정답!';$('qmsg').className='msg ok'}
  else{$('qmsg').className='msg no';if(S.o.test){S.done++;$('qmsg').textContent=`${ins.length-ok}개 틀림`}else{S.queue.push(S.cur);$('qmsg').textContent=`${ins.length-ok}개 틀림 · 이 문장은 끝에 다시 나와요`}}
- save();S.checked=true;$('bgo').textContent=S.queue.length?'다음 문장':'결과 보기';$('bhint').disabled=true;$('bhint').style.opacity=.4;$('bgo').focus()}
+ save();S.checked=true;$('bank').querySelectorAll('.chip').forEach(c=>c.disabled=true);[...$('qen').querySelectorAll('input')].forEach(e=>e.classList.remove('sel'));$('bgo').textContent=S.queue.length?'다음 문장':'결과 보기';$('bhint').disabled=true;$('bhint').style.opacity=.4;$('bgo').focus()}
 $('bgo').onclick=()=>S.checked?next():check();
 $('bhint').onclick=()=>{const it=BY[S.cur],ans=it.seg.filter(x=>typeof x==='object').map(x=>x.a);S.hinted[S.cur]=1;[...$('qen').querySelectorAll('input')].forEach((el,i)=>{if(!el.value)el.placeholder=ans[i].split(' ').map(w=>w[0]+'…').join(' ')});$('qmsg').textContent='힌트를 쓰면 이 문장은 첫 시도 오답으로 기록돼요';$('qmsg').className='msg'};
 $('bquit').onclick=()=>{if(S.done===0&&!Object.keys(S.first).length){show('home');return}finish(false)};
