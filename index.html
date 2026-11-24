@@ -186,6 +186,8 @@ function renderMission(){const p=PLAN[sel],t=dayIdx(new Date()),d=dateOf(sel);co
  $('mission').innerHTML=`<span class="tag">${sel+1}일차 · ${md(d)}${sel===t?' · 오늘':''}</span><h2>${esc(p.t)}</h2><p class="meta"><b>${modeTxt}</b><br>${p.rev||p.test?`${nb}문장`:`새 문장 ${nb}개${p.p?' + 복습':''}`} · ${desc}</p>
  <div class="stats"><div class="stat"><b>${done?'완료':'아직'}</b><small>이날 목표</small></div><div class="stat"><b>${streak}일</b><small>연속 달성</small></div><div class="stat"><b>${best?best.pct+'%':'–'}</b><small>이날 최고 첫 정답률</small></div></div>
  <button class="btn wide" id="go">${done?'한 번 더 하기':'시작하기'}</button>${saveOK?'':'<p class="note">이 브라우저(시크릿 모드 등)에서는 내 기록이 저장되지 않아요. 선생님께는 전송돼요.</p>'}`;
+ const last=ST.logs.filter(l=>l.day===sel).sort((a,b)=>a.at-b.at).pop();const resume=last&&!last.full&&last.rem&&last.rem.length?last.rem:null;
+ if(resume){$('go').textContent=`이어서 하기 (남은 ${resume.length}문장)`;$('go').insertAdjacentHTML('afterend','<button class="btn ghost wide" id="go0" style="margin-top:8px">처음부터 다시</button>');$('go0').onclick=()=>start(p.ids(),{day:sel,title:`${sel+1}일차 ${p.t}${p.ch?' (선택형)':' (타이핑)'}`,test:!!p.test,ch:!!p.ch,noko:!p.ch});$('go').onclick=()=>start(resume.filter(id=>BY[id]),{day:sel,title:`${sel+1}일차 ${p.t}${p.ch?' (선택형)':' (타이핑)'} · 이어서`,test:!!p.test,ch:!!p.ch,noko:!p.ch});return}
  $('go').onclick=()=>start(p.ids(),{day:sel,title:`${sel+1}일차 ${p.t}${p.ch?' (선택형)':' (타이핑)'}`,test:!!p.test,ch:!!p.ch,noko:!p.ch})}
 function renderLog(){const L=ST.logs.slice().reverse();$('p-log').innerHTML=L.length?`<ul class="log">${L.map(l=>{const d=new Date(l.at);return `<li><span class="pct">${l.pct}%</span><b>${esc(md(d))} ${hm(d)}</b> · ${esc(l.title)}<br><span class="s">첫 정답 ${l.ok}/${l.nb} · ${l.min}분${l.full?'':' · 중간에 그만둠'}${l.wrong.length?` · 틀린 문장 ${l.wrong.length}개`:''}</span></li>`}).join('')}</ul><div class="row" style="margin-top:12px"><button class="btn ghost" id="ball">전체 기록 복사</button><span class="confirm" id="rst"><button class="btn ghost" id="brst">기록 초기화</button></span></div><p class="msg ok" id="lmsg"></p>`:'<p class="note">아직 기록이 없어요. 오늘 목표부터 시작해 보세요.</p>';
  if(!L.length)return;
@@ -200,7 +202,7 @@ $('fgo').onclick=()=>{const [b,s,a,z]=$('fr').value.split('-').map(Number);let i
 
 // session
 let S=null;
-function start(ids,o){PREV_USE=PREV;PREV=new Set();if(!ST.name){$('nm').focus();$('nm').placeholder='이름부터 입력!';$('nm').style.outline='3px solid #ffe14d';window.scrollTo(0,0);return}$('nm').style.outline='';S={prev:PREV_USE,ids,queue:ids.slice(),o,t0:Date.now(),first:{},hinted:{},done:0,cur:null,checked:false};show('play');next()}
+function start(ids,o){PREV_USE=PREV;PREV=new Set();if(!ST.name){$('nm').focus();$('nm').placeholder='이름부터 입력!';$('nm').style.outline='3px solid #ffe14d';window.scrollTo(0,0);return}$('nm').style.outline='';S={okSet:new Set(),prev:PREV_USE,ids,queue:ids.slice(),o,t0:Date.now(),first:{},hinted:{},done:0,cur:null,checked:false};show('play');next()}
 function next(){if(!S.queue.length)return finish(true);S.cur=S.queue.shift();S.checked=false;const it=BY[S.cur];
  const isRe=S.first[S.cur]!==undefined;
  $('qlab').textContent=lab(it)+(S.prev&&S.prev.has(S.cur)?' · 어제 틀린 문장':'')+(isRe?' · 다시':'');$('qcnt').textContent=`${S.done}/${S.ids.length} 완료${S.queue.length&&!S.o.test?` · 남은 재도전 ${S.queue.filter(x=>S.first[x]!==undefined).length}`:''}`;
@@ -224,6 +226,7 @@ function check(){const it=BY[S.cur],ans=it.seg.filter(x=>typeof x==='object').ma
  const first=S.first[S.cur]===undefined;const allOk=ok===ins.length&&!S.hinted[S.cur];
  send({type:'item',set:S.o.title,item:lab(it),attempt:first?'첫 시도':'재도전',result:ok===ins.length?(S.hinted[S.cur]?'정답(힌트)':'정답'):'오답',input:ins.map(e=>e.value).join(' / '),answer:ans.join(' / ')});
  if(first){S.first[S.cur]=S.hinted[S.cur]?0:ok;const st=ST.item[S.cur]||(ST.item[S.cur]={w:0,k:0});if(allOk)st.k++;else{st.w++;st.k=0}}
+ if(ok===ins.length||S.o.test)S.okSet.add(S.cur);
  if(ok===ins.length){S.done++;$('qmsg').textContent=S.hinted[S.cur]?'정답 (힌트 사용)':'정답!';$('qmsg').className='msg ok'}
  else{$('qmsg').className='msg no';if(S.o.test){S.done++;$('qmsg').textContent=`${ins.length-ok}개 틀림`}else{S.queue.push(S.cur);$('qmsg').textContent=`${ins.length-ok}개 틀림 · 이 문장은 끝에 다시 나와요`}}
  save();S.checked=true;$('bank').querySelectorAll('.chip').forEach(c=>c.disabled=true);[...$('qen').querySelectorAll('input')].forEach(e=>e.classList.remove('sel'));$('bgo').textContent=S.queue.length?'다음 문장':'결과 보기';$('bhint').disabled=true;$('bhint').style.opacity=.4;$('bgo').focus()}
@@ -232,8 +235,8 @@ $('bhint').onclick=()=>{const it=BY[S.cur],ans=it.seg.filter(x=>typeof x==='obje
 $('bquit').onclick=()=>{if(S.done===0&&!Object.keys(S.first).length){show('home');return}finish(false)};
 function finish(full){const nb=S.ids.reduce((a,id)=>a+BY[id].nb,0);const seen=Object.keys(S.first);const ok=seen.reduce((a,id)=>a+S.first[id],0);const tot=seen.reduce((a,id)=>a+BY[id].nb,0)||1;
  const wrong=seen.filter(id=>S.first[id]<BY[id].nb).sort(byOrder);
- const log={at:Date.now(),day:S.o.day,title:S.o.title,full,ok,nb:full?nb:tot,pct:Math.round(ok/(full?nb:tot)*100),min:Math.max(1,Math.round((Date.now()-S.t0)/6e4)),wrong};
- ST.logs.push(log);save();send({type:'set',day:log.day>=0?log.day+1:'',title:log.title,status:full?'완료':'중단',ok:log.ok,nb:log.nb,pct:log.pct,min:log.min,wrong:wrong.map(id=>lab(BY[id])).join(', '),client:new Date(log.at).toLocaleString('ko-KR')});
+ const rem=full?[]:S.ids.filter(id=>!S.okSet.has(id));const log={rem,o:S.o,at:Date.now(),day:S.o.day,title:S.o.title,full,ok,nb:full?nb:tot,pct:Math.round(ok/(full?nb:tot)*100),min:Math.max(1,Math.round((Date.now()-S.t0)/6e4)),wrong};
+ ST.logs.push(log);save();send({type:'set',day:log.day>=0?log.day+1:'',title:log.title,status:full?'완료':'중단',ok:log.ok,nb:log.nb,pct:log.pct,min:log.min,wrong:wrong.map(id=>lab(BY[id])).join(', '),rem:rem.map(id=>lab(BY[id])).join(', '),client:new Date(log.at).toLocaleString('ko-KR')});
  $('dtag').textContent=full?(log.day>=0?`${log.day+1}일차 목표 완료`:'연습 완료'):'중간에 그만둠';$('dtitle').textContent=S.o.title;
  $('dstats').innerHTML=`<div class="stat"><b>${log.pct}%</b><small>첫 시도 정답률</small></div><div class="stat"><b>${ok}/${log.nb}</b><small>첫 시도 맞힌 빈칸</small></div><div class="stat"><b>${log.min}분</b><small>걸린 시간</small></div>`;
  $('dwrong').innerHTML=wrong.length?`<h3 style="font-size:16px;margin:16px 0 4px">처음에 틀린 문장 ${wrong.length}개</h3><ul class="wrongs">${wrong.map(id=>`<li><b>${esc(lab(BY[id]))}</b> — ${esc(full_(BY[id]))}</li>`).join('')}</ul>`:'<p class="msg ok">처음부터 전부 맞혔어요.</p>';
@@ -250,8 +253,8 @@ async function pull(){const st=$('pullst');if(!SCRIPT_URL||!ST.name||S)return;st
  try{const r=await fetch(SCRIPT_URL+'?name='+encodeURIComponent(ST.name));const d=await r.json();if(S)return;
   const item={},logs=[];const ap=(id,good)=>{const t=item[id]||(item[id]={w:0,k:0});if(good)t.k++;else{t.w++;t.k=0}};
   (d.items||[]).forEach(([l,res])=>{const id=LBL[l];if(id)ap(id,res==='정답')});
-  (d.sets||[]).forEach(r=>{const [at,day,title,status,ok,nb,pct,min,wrong]=r;logs.push({at:at||Date.now(),day:typeof day==='number'?day-1:-1,title:String(title),full:status==='완료',ok:+ok||0,nb:+nb||0,pct:+pct||0,min:+min||0,wrong:String(wrong||'').split(', ').map(x=>LBL[x]).filter(Boolean)})});
-  Q.forEach(q=>{if(q.type==='item'&&q.attempt==='첫 시도'&&LBL[q.item])ap(LBL[q.item],q.result==='정답');if(q.type==='set')logs.push({at:Date.now(),day:typeof q.day==='number'?q.day-1:-1,title:q.title,full:q.status==='완료',ok:q.ok,nb:q.nb,pct:q.pct,min:q.min,wrong:String(q.wrong||'').split(', ').map(x=>LBL[x]).filter(Boolean)})});
+  (d.sets||[]).forEach(r=>{const [at,day,title,status,ok,nb,pct,min,wrong,rem]=r;logs.push({rem:String(rem||'').split(', ').map(x=>LBL[x]).filter(Boolean),at:at||Date.now(),day:typeof day==='number'?day-1:-1,title:String(title),full:status==='완료',ok:+ok||0,nb:+nb||0,pct:+pct||0,min:+min||0,wrong:String(wrong||'').split(', ').map(x=>LBL[x]).filter(Boolean)})});
+  Q.forEach(q=>{if(q.type==='item'&&q.attempt==='첫 시도'&&LBL[q.item])ap(LBL[q.item],q.result==='정답');if(q.type==='set')logs.push({rem:String(q.rem||'').split(', ').map(x=>LBL[x]).filter(Boolean),at:Date.now(),day:typeof q.day==='number'?q.day-1:-1,title:q.title,full:q.status==='완료',ok:q.ok,nb:q.nb,pct:q.pct,min:q.min,wrong:String(q.wrong||'').split(', ').map(x=>LBL[x]).filter(Boolean)})});
   logs.sort((a,b)=>a.at-b.at);ST.item=item;ST.logs=logs;save();st.textContent=`기록 불러옴 ✓ (${logs.length}회)`;refresh(true)}
  catch(e){st.textContent='기록을 못 불러왔어요 (이 기기 기록으로 진행)'}}
 function refresh(keep){syncUI();renderDays();renderMission();renderLog();renderWrong();if(!keep)show('home')}
