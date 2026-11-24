@@ -73,7 +73,7 @@ label.f{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
 <header><div class="wrap">
 <h1>내신 빈칸 <mark>7일</mark></h1>
 <p>영어I 2과 · 영어II 3과 매일 같이 · 11/24(화) ~ 11/30(월)</p>
-<div class="namebox"><label for="nm">이름</label><input id="nm" placeholder="이름 입력" autocomplete="off"></div>
+<div class="namebox"><label for="nm">이름</label><input id="nm" placeholder="이름 입력" autocomplete="off"><span id="pullst" style="font-size:13px;opacity:.9"></span></div>
 </div></header>
 <div class="wrap">
 <div class="days" id="days"></div>
@@ -243,9 +243,18 @@ function report(l){const d=new Date(l.at);return `[내신 빈칸 7일] ${ST.name
 function allReport(){return `[내신 빈칸 7일] ${ST.name||'(이름 없음)'} 전체 기록\n7일 목표 달성: ${PLAN.map((p,k)=>dayDone(k)?'■':'□').join('')} (${PLAN.filter((p,k)=>dayDone(k)).length}/7)\n`+ST.logs.map(l=>{const d=new Date(l.at);return `- ${md(d)} ${hm(d)} ${l.title} · ${l.pct}% · ${l.min}분${l.full?'':' · 중단'}`}).join('\n')+`\n현재 오답 문장 ${ITEMS.filter(i=>weak(i.id)).length}개`}
 function copy(t,m){const done=()=>{m.textContent='복사했어요. 카톡에 붙여넣으세요.'};try{navigator.clipboard.writeText(t).then(done,()=>{m.textContent='복사가 막혔어요. 위 글을 길게 눌러 복사하세요.'})}catch(e){m.textContent='복사가 막혔어요. 위 글을 길게 눌러 복사하세요.'}}
 $('bcopy').onclick=()=>{$('rep').select();copy($('rep').value,$('cmsg'))};
-$('bhome').onclick=()=>show('home');
-$('nm').value=ST.name||'';$('nm').oninput=()=>{ST.name=$('nm').value.trim();save()};
+$('bhome').onclick=()=>{show('home');pull()};
+$('nm').value=ST.name||'';$('nm').oninput=()=>{ST.name=$('nm').value.trim();save()};$('nm').onchange=()=>pull();
+const LBL={};ITEMS.forEach(i=>LBL[lab(i)]=i.id);
+async function pull(){const st=$('pullst');if(!SCRIPT_URL||!ST.name||S)return;st.textContent='기록 불러오는 중…';
+ try{const r=await fetch(SCRIPT_URL+'?name='+encodeURIComponent(ST.name));const d=await r.json();if(S)return;
+  const item={},logs=[];const ap=(id,good)=>{const t=item[id]||(item[id]={w:0,k:0});if(good)t.k++;else{t.w++;t.k=0}};
+  (d.items||[]).forEach(([l,res])=>{const id=LBL[l];if(id)ap(id,res==='정답')});
+  (d.sets||[]).forEach(r=>{const [at,day,title,status,ok,nb,pct,min,wrong]=r;logs.push({at:at||Date.now(),day:typeof day==='number'?day-1:-1,title:String(title),full:status==='완료',ok:+ok||0,nb:+nb||0,pct:+pct||0,min:+min||0,wrong:String(wrong||'').split(', ').map(x=>LBL[x]).filter(Boolean)})});
+  Q.forEach(q=>{if(q.type==='item'&&q.attempt==='첫 시도'&&LBL[q.item])ap(LBL[q.item],q.result==='정답');if(q.type==='set')logs.push({at:Date.now(),day:typeof q.day==='number'?q.day-1:-1,title:q.title,full:q.status==='완료',ok:q.ok,nb:q.nb,pct:q.pct,min:q.min,wrong:String(q.wrong||'').split(', ').map(x=>LBL[x]).filter(Boolean)})});
+  logs.sort((a,b)=>a.at-b.at);ST.item=item;ST.logs=logs;save();st.textContent=`기록 불러옴 ✓ (${logs.length}회)`;refresh(true)}
+ catch(e){st.textContent='기록을 못 불러왔어요 (이 기기 기록으로 진행)'}}
 function refresh(keep){syncUI();renderDays();renderMission();renderLog();renderWrong();if(!keep)show('home')}
-freeOpts();refresh();flush();
+freeOpts();refresh();flush();pull();
 }
 </script></body></html>
